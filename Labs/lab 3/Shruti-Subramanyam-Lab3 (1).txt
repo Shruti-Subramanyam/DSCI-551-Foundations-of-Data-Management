@@ -1,0 +1,319 @@
+// 1. Question: Find out, for each continent, the number of countries whose GNP is at least 100,000 and has at least 1 million people.
+
+// Query: 
+db.country.aggregate([
+  {
+    $match: {
+      GNP: { $gte: 100000 },
+      Population: { $gte: 1000000 }
+    }
+  },
+  {
+    $group: {
+      _id: "$Continent",
+      Count: { $sum: 1 }
+    }
+  }
+])
+
+// Result: 
+[
+  { _id: 'Oceania', Count: 1 },
+  { _id: 'Africa', Count: 1 },
+  { _id: 'North America', Count: 3 },
+  { _id: 'South America', Count: 3 },
+  { _id: 'Europe', Count: 17 },
+  { _id: 'Asia', Count: 11 }
+]
+
+// 2. Question: Find out how many districts (states) there are in the United States.
+
+// Query:  
+db.city.aggregate([
+  {
+    $match: {
+      CountryCode: "USA"
+    }
+  },
+  {
+    $group: {
+      _id: "$District"
+    }
+  },
+  {
+    $count: "Count"
+  }
+])
+
+// Result: 
+[ { Count: 45 } ]
+
+// 3. Question: Find out how many countries do not have capital cities, using the fact that the Capital field of such a country takes a // value of 0.
+
+// Query: 
+db.country.aggregate([
+  {
+    $match: {
+      Capital: 0
+    }
+  },
+  {
+    $count: "Count"
+  }
+])
+
+// Result: 
+[ { Count: 7 } ]
+
+// 4. Question: Find out how many countries do not have capital cities, using the fact that such countries do not join with any city //(i.e., their capital city ID does not show up in the city collection). To use $count in aggregate, check out the manual:
+// https://www.mongodb.com/docs/manual/reference/operator/aggregation/count/
+
+// Query: 
+db.country.aggregate([
+  {
+    $lookup: {
+      from: "city",
+      localField: "Capital",
+      foreignField: "_id.ID",
+      as: "capitalCity"
+    }
+  },
+  {
+    $match: {
+      "capitalCity": { $size: 0 }
+    }
+  },
+  {
+    $count: "Count"
+  }
+])
+ 
+// Result: 
+[ { Count: 7 } ]
+
+// 5. Question: Find out the top 10 countries ranked by the number of cities whose population is more than 100,000. Return country code //and the number of such cities only.
+
+// Query: 
+db.city.aggregate([
+  {
+    $match: {
+      Population: { $gt: 100000 }
+    }
+  },
+  {
+    $group: {
+      _id: "$CountryCode",
+      Count: { $sum: 1 }
+    }
+  },
+  {
+    $sort: {
+      Count: -1
+    }
+  },
+  {
+    $limit: 10
+  },
+  {
+    $project: {
+      _id: 0,
+      CountryCode: "$_id",
+      Count: 1
+    }
+  }
+])
+
+
+// Result: 
+[
+  { Count: 341, CountryCode: 'CHN' },
+  { Count: 310, CountryCode: 'IND' },
+  { Count: 245, CountryCode: 'USA' },
+  { Count: 226, CountryCode: 'JPN' },
+  { Count: 216, CountryCode: 'BRA' },
+  { Count: 166, CountryCode: 'RUS' },
+  { Count: 153, CountryCode: 'MEX' },
+  { Count: 117, CountryCode: 'PHL' },
+  { Count: 83, CountryCode: 'DEU' },
+  { Count: 68, CountryCode: 'KOR' }
+]
+
+//When the command is run multiple times the output sometimes includes { Count: 68, CountryCode: 'IDN' } as the 10th element
+
+// 6. Question: Find the most populated city in the United States, assuming there is only one such city. Return the city name and its //population.
+
+// Query: 
+db.city.aggregate([
+  {
+    $match: {
+      CountryCode: "USA"
+    }
+  },
+  {
+    $sort: {
+      Population: -1
+    }
+  },
+  {
+    $limit: 1
+  },
+  {
+    $project: {
+      _id: 0,
+      cityName: "$Name",
+      population: "$Population"
+    }
+  }
+])
+
+// Result: 
+[ { cityName: 'New York', population: 8008278 } ]
+
+// 7. Question: Find out which district (state) in the USA has the largest number of people (who live in the cities of the district). //Assume there is only one such district. Output name of district and its total population.
+
+// Query: 
+db.city.aggregate([
+  {
+    $match: {
+      CountryCode: "USA"
+    }
+  },
+  {
+    $group: {
+      _id: "$District",
+      totalPopulation: { $sum: "$Population" }
+    }
+  },
+  {
+    $sort: {
+      totalPopulation: -1
+    }
+  },
+  {
+    $limit: 1
+  },
+  {
+    $project: {
+      _id: 0,
+      districtName: "$_id",
+      totalPopulation: 1
+    }
+  }
+])
+
+// Result:
+[ { totalPopulation: 16716706, districtName: 'California' } ]
+
+
+// 8. Question: Find out countries which have English as one of their official languages and spoken by at least 90% of its population. //Return the country code only.
+
+// Query: 
+db.countrylanguage.aggregate([
+  {
+    $match: {
+      "_id.Language": "English",
+      IsOfficial: "T",
+      Percentage: { $gte: 90 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      Country_code: "$_id.CountryCode"
+    }
+  }
+])
+
+// Result: 
+[
+  { Country_code: 'BMU' },
+  { Country_code: 'GBR' },
+  { Country_code: 'IRL' }
+]
+
+// 9. Question: Find out languages spoken in the United States or Canada. Your output should look like:
+// [
+// { language: 'Chinese' },
+// { language: 'English' },
+// { language: 'French' },
+// …
+// Make sure the languages are listed in the alphabetical order.
+
+// Query: 
+db.countrylanguage.aggregate([
+  {
+    $match: {
+      $or: [
+        { "_id.CountryCode": "USA" },
+        { "_id.CountryCode": "CAN" }
+      ]
+    }
+  },
+  {
+    $group: {
+      _id: "$_id.Language"
+    }
+  },
+  {
+    $sort: {
+      _id: 1
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      language: "$_id"
+    }
+  }
+])
+
+// Result: 
+[
+  { language: 'Chinese' },
+  { language: 'Dutch' },
+  { language: 'English' },
+  { language: 'Eskimo Languages' },
+  { language: 'French' },
+  { language: 'German' },
+  { language: 'Italian' },
+  { language: 'Japanese' },
+  { language: 'Korean' },
+  { language: 'Polish' },
+  { language: 'Portuguese' },
+  { language: 'Punjabi' },
+  { language: 'Spanish' },
+  { language: 'Tagalog' },
+  { language: 'Ukrainian' },
+  { language: 'Vietnamese' }
+]
+
+
+// 10. Question: Find out the countries whose GNP is greater than the GNP of China. Note you should first find GNP of China. Use two // // // separate queries. Return the name of the country and its GNP. You are provided with the following sample script that uses a bit of //Javascript for this
+// question. Consider the following person collection:
+// {_id: 1, name: "john", age: 26}
+// {_id: 2, name: "bill", age: 27}
+// {_id: 3, name: "david", age: 26}
+// {_id: 4, name: "mary", age: 26}
+// ● Find people at the same age as the person with _id = 1.
+// var my_age = db.person.find({_id: 1}, {age: 1, _id: 0}).toArray()[0].age
+// db.person.find({age: my_age}) // note my_age is a variable
+
+// Query: 
+var chinaGNP = db.country.findOne({ Name: "China" }, { GNP: 1, _id: 0 }).GNP;
+db.country.find({ GNP: { $gt: chinaGNP } }, { Name: 1, GNP: 1, _id: 0 });
+
+// Result: 
+[
+  { Name: 'Germany', GNP: 2133367 },
+  { Name: 'France', GNP: 1424285 },
+  { Name: 'United Kingdom', GNP: 1378330 },
+  { Name: 'Italy', GNP: 1161755 },
+  { Name: 'Japan', GNP: 3787042 },
+  { Name: 'United States', GNP: 8510700 }
+]
+
+
+
+
+
+
