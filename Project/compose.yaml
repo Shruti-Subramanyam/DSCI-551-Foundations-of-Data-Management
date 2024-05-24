@@ -1,0 +1,58 @@
+services:
+  mdb0:
+    image: mongodb/mongodb-community-server:6.0-ubi8
+    env_file:
+      - ./env/mongodb0.env
+    ports:
+      - "27017:27017"
+    volumes:
+      - type: volume
+        source: mngdb0
+        target: /data/db
+    container_name: mongodb0
+    networks:
+      - backend
+  mdb1:
+    image: mongodb/mongodb-community-server:6.0-ubi8
+    env_file:
+      - ./env/mongodb1.env
+    ports:
+      - "27018:27017"
+    volumes:
+      - type: volume
+        source: mngdb1
+        target: /data/db
+    container_name: mongodb1
+    networks:
+      - backend
+  back:
+    build: ./fastapi
+    env_file:
+      - ./env/fastapi.env
+    ports:
+      - "80:80"
+    volumes:
+      - ./fastapi/app:/code/app
+    container_name: fastapi
+    depends_on:
+      - mdb0
+    networks:
+      - frontend
+      - backend
+  front:
+    build: ./streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit:/app
+    container_name: streamlit
+    depends_on:
+      - back
+    networks:
+      - frontend
+volumes:
+  mngdb0:
+  mngdb1:
+networks:
+  frontend:
+  backend:
